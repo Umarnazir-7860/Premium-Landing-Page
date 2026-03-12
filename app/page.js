@@ -1,231 +1,216 @@
 "use client";
 import { useEffect, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
-import { Float, MeshDistortMaterial, Icosahedron, Environment, ContactShadows } from "@react-three/drei";
-import { EffectComposer, Bloom, Noise } from "@react-three/postprocessing";
+import { Float, MeshDistortMaterial, Icosahedron, Environment } from "@react-three/drei";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Lenis from "lenis";
 
 gsap.registerPlugin(ScrollTrigger);
 
-function Scene({ modelRef }) {
+function Scene() {
   return (
     <>
       <Environment preset="city" />
-      <Float speed={4} rotationIntensity={1} floatIntensity={1}>
-        <Icosahedron ref={modelRef} args={[1, 15]} scale={2.5}>
-          <MeshDistortMaterial color="#0a0a0a" roughness={0.1} metalness={1} distort={0.5} speed={3} />
+      <Float speed={1.5} rotationIntensity={0.2} floatIntensity={0.5}>
+        <Icosahedron args={[1, 10]} scale={2.5}>
+          <MeshDistortMaterial color="#0a0a0a" roughness={0.1} metalness={1} distort={0.3} speed={2} />
         </Icosahedron>
       </Float>
-      <ContactShadows position={[0, -3.5, 0]} opacity={0.4} scale={10} blur={2} />
     </>
   );
 }
 
 export default function Home() {
   const container = useRef();
-  const modelRef = useRef();
   const cursorRef = useRef();
 
   useEffect(() => {
-    const lenis = new Lenis({ lerp: 0.1, smoothWheel: true });
+    const lenis = new Lenis({ lerp: 0.05, duration: 1.2, smoothWheel: true });
     function raf(time) { lenis.raf(time); requestAnimationFrame(raf); }
     requestAnimationFrame(raf);
 
-    const ctx = gsap.context(() => {
-      /* --- HERO --- */
-      gsap.from(".hero-title", { y: 200, opacity: 0, duration: 2, ease: "expo.out" });
-      gsap.from(".hero-sub", { y: 50, opacity: 0, duration: 1.5, delay: 0.8 });
+    const moveCursor = (e) => {
+      gsap.to(cursorRef.current, { x: e.clientX, y: e.clientY, duration: 0.4, ease: "power2.out" });
+    };
+    window.addEventListener("mousemove", moveCursor);
 
-      /* --- SERVICES (Horizontal) --- */
-      const services = gsap.utils.toArray(".service-card");
-      gsap.to(services, {
-        xPercent: -100 * (services.length - 1),
+    const ctx = gsap.context(() => {
+      // 1. Hero Text Parallax
+      gsap.to(".hero-h1", {
+        yPercent: -20,
+        scrollTrigger: { trigger: ".hero-sec", start: "top top", scrub: true }
+      });
+
+      gsap.to(".mission", {
+       yPercent: -20,
+        scrollTrigger: { trigger: ".mission", start: "top top", scrub: true }
+      });
+      // 2. Horizontal Scroll
+      const items = gsap.utils.toArray(".h-item");
+      gsap.to(items, {
+        xPercent: -100 * (items.length - 1),
         ease: "none",
         scrollTrigger: {
-          trigger: ".services-section",
+          trigger: ".h-section",
+          pin: true,
+          scrub: 0.1,
+          start: "top top",
+          end: () => "+=" + window.innerWidth * 2.5,
+        }
+      });
+
+      // 3. Project Stacking (WITH LAST CARD HOLD)
+      const cards = gsap.utils.toArray(".p-card");
+      gsap.set(cards.slice(1), { yPercent: 100 });
+
+      const tl = gsap.timeline({
+        scrollTrigger: {
+          trigger: ".p-section",
           pin: true,
           scrub: 1,
           start: "top top",
-          end: () => "+=" + document.querySelector(".services-wrapper").offsetWidth,
+          // Extra length (+200%) last card ko hold karne ke liye
+          end: () => "+=" + (cards.length + 1) * 100 + "%", 
         }
       });
 
-      /* --- PROJECTS (Cinematic) --- */
-      const projects = gsap.utils.toArray(".project-card");
-      const projectMain = gsap.to(projects, {
-        xPercent: -100 * (projects.length - 1),
-        ease: "none",
-        scrollTrigger: {
-          trigger: ".projects-section",
-          pin: true,
-          scrub: 1.5,
-          start: "top top",
-          end: () => "+=" + (window.innerWidth * 3),
+      cards.forEach((card, i) => {
+        if (i > 0) {
+          tl.to(card, { yPercent: 0, ease: "none" }, i);
+          tl.to(cards[i - 1], { scale: 0.85, opacity: 0.2, filter: "blur(8px)", ease: "none" }, i);
         }
       });
+      // Ye empty tween last card ko thora aur der screen par rokega
+      tl.to({}, { duration: 1 }); 
 
-      projects.forEach((card) => {
-        const img = card.querySelector(".project-main-img");
-        const content = card.querySelector(".project-content");
-        gsap.fromTo(img, { scale: 1.6, filter: "brightness(0)" }, { scale: 1, filter: "brightness(0.6)", scrollTrigger: { trigger: card, containerAnimation: projectMain, start: "left right", end: "center center", scrub: true } });
-        gsap.fromTo(content, { y: 150, opacity: 0 }, { y: 0, opacity: 1, scrollTrigger: { trigger: card, containerAnimation: projectMain, start: "left center", end: "center center", scrub: true } });
-      });
-
-      /* --- NEW: ABOUT SECTION REVEAL --- */
-      // Text Line-by-Line Reveal
-      gsap.from(".about-title", {
-        scrollTrigger: { trigger: ".about-section", start: "top 70%" },
-        y: 100,
-        opacity: 0,
-        duration: 1.5,
-        ease: "power4.out"
-      });
-
-      gsap.from(".about-para", {
-        scrollTrigger: { trigger: ".about-section", start: "top 60%" },
-        y: 50,
-        opacity: 0,
-        duration: 1.5,
-        stagger: 0.3,
-        ease: "power3.out"
-      });
-
-      gsap.from(".stat-item", {
-        scrollTrigger: { trigger: ".stats-grid", start: "top 85%" },
-        scale: 0.5,
-        opacity: 0,
-        duration: 1,
-        stagger: 0.2,
-        ease: "back.out(1.7)"
-      });
-
-      /* --- NEW: FOOTER ZOOM-OUT REVEAL --- */
-      gsap.from(".footer-title", {
-        scrollTrigger: {
-          trigger: "footer",
-          start: "top bottom",
-          end: "bottom bottom",
-          scrub: 2
-        },
-        scale: 0.2,
-        opacity: 0,
-        filter: "blur(20px)",
+      // 4. Marquee Animation
+      gsap.to(".marquee-inner", {
+        xPercent: -50,
+        repeat: -1,
+        duration: 20,
         ease: "none"
-      });
-
-      gsap.from(".footer-btn", {
-        scrollTrigger: { trigger: "footer", start: "top 30%" },
-        y: 50,
-        opacity: 0,
-        duration: 1,
-        ease: "power2.out"
       });
 
     }, container);
 
-    const moveCursor = (e) => {
-      gsap.to(cursorRef.current, { x: e.clientX, y: e.clientY, duration: 0.5 });
-      if (modelRef.current) {
-        const x = (e.clientX / window.innerWidth - 0.5) * 2;
-        const y = (e.clientY / window.innerHeight - 0.5) * 2;
-        gsap.to(modelRef.current.rotation, { x: y * 0.4, y: x * 0.6, duration: 1.5 });
-      }
+    return () => {
+      ctx.revert();
+      lenis.destroy();
+      window.removeEventListener("mousemove", moveCursor);
     };
-    window.addEventListener("mousemove", moveCursor);
-
-    return () => { ctx.revert(); window.removeEventListener("mousemove", moveCursor); lenis.destroy(); };
   }, []);
 
   return (
-    <main ref={container} className="bg-[#050505] text-white overflow-hidden">
+    <main ref={container} className="bg-[#020202] text-white cursor-none overflow-x-hidden">
       
-      <div ref={cursorRef} className="fixed w-4 h-4 bg-white rounded-full z-[9999] pointer-events-none mix-blend-difference hidden md:block" style={{ transform: 'translate(-50%, -50%)' }}></div>
+      {/* Custom Cursor */}
+      <div ref={cursorRef} className="fixed top-0 left-0 w-6 h-6 bg-white rounded-full pointer-events-none z-[9999] mix-blend-difference -translate-x-1/2 -translate-y-1/2"></div>
 
-      <div className="fixed inset-0 z-0 pointer-events-none opacity-50">
-        <Canvas camera={{ position: [0, 0, 5], fov: 45 }}>
-          <Scene modelRef={modelRef} />
-          <EffectComposer><Bloom luminanceThreshold={1} intensity={1.5} /><Noise opacity={0.04} /></EffectComposer>
-        </Canvas>
+      {/* 3D Background */}
+      <div className="fixed inset-0 z-0 opacity-20 pointer-events-none">
+        <Canvas dpr={1} gl={{ antialias: false }}><Scene /></Canvas>
       </div>
-
-      {/* NAVBAR */}
-      <nav className="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-16 py-8 backdrop-blur-md bg-black/10 border-b border-white/5">
-        <h1 className="text-2xl font-black italic tracking-tighter">NEXUS</h1>
-        <div className="flex gap-12 text-[10px] uppercase tracking-[0.4em] font-bold">
-          {["Work", "Services", "About", "Contact"].map(item => <a key={item} className="hover:text-zinc-400 transition cursor-pointer">{item}</a>)}
+        {/* Glass Navbar */}
+      <nav className="fixed top-0 w-full z-[100] flex justify-between items-center px-10 py-6 backdrop-blur-md border-b border-white/5 bg-black/10">
+        <div className="font-black italic text-2xl tracking-tighter uppercase leading-none">Nexus</div>
+        <div className="flex gap-8 text-[10px] font-bold tracking-[0.4em] uppercase opacity-60">
+          <span className="hover:opacity-100 transition-opacity cursor-pointer">Projects</span>
+          <span className="hover:opacity-100 transition-opacity cursor-pointer">About</span>
+          <span className="hover:opacity-100 transition-opacity cursor-pointer text-white">Contact</span>
         </div>
       </nav>
-
-      {/* SECTIONS (Hero, Services, Projects - Purani logic bilkul same) */}
-      <section className="h-screen flex flex-col justify-center items-center text-center relative z-10">
-        <h1 className="hero-title text-[20vw] font-black italic leading-none tracking-tighter">NEXUS</h1>
-        <p className="hero-sub text-xs tracking-[1.2em] text-zinc-500 mt-6 uppercase">Future of Digital Interaction</p>
+      {/* Hero Section */}
+      <section className="hero-sec h-[120vh] flex items-center justify-center relative z-10 overflow-hidden">
+        <h1 className="hero-h1 text-[22vw] font-black italic tracking-tighter uppercase leading-none select-none">Nexus</h1>
+        <div className="absolute bottom-20 left-10 flex gap-20 opacity-40 text-[10px] font-bold tracking-[0.5em] uppercase">
+          <p>London / 2026</p>
+          <p>Creative Studio</p>
+        </div>
       </section>
 
-      <section className="services-section h-screen flex items-center overflow-hidden relative z-10">
-        <div className="services-wrapper flex">
-          {[
-            { title: "Web Design", img: "https://images.unsplash.com/photo-1559028012-481c04fa702d" },
-            { title: "3D Experiences", img: "https://images.unsplash.com/photo-1531297484001-80022131f5a1" },
-            { title: "Development", img: "https://images.unsplash.com/photo-1555066931-4365d14bab8c" }
-          ].map((s, i) => (
-            <div key={i} className="service-card w-screen h-screen flex flex-col justify-center items-center relative overflow-hidden group">
-              <img src={s.img} className="absolute w-full h-[140%] object-cover  grayscale transition-all duration-1000 group-hover:grayscale-0" />
-              <h2 className="text-[12vw] font-black uppercase relative z-20 transition-all duration-700 group-hover:italic">{s.title}</h2>
+      {/* New Section: Mission Statement */}
+      <section className="mission py-60 px-10 relative z-10 flex flex-col items-center">
+        <p className="max-w-4xl text-center text-3xl md:text-5xl font-light leading-tight italic">
+          We bridge the gap between <span className="text-zinc-500">imagination</span> and <span className="text-zinc-500">execution</span> through high-end digital experiences.
+        </p>
+      </section>
+
+      {/* Horizontal Scroll */}
+      <section className="h-section h-screen overflow-hidden relative z-10">
+        <div className="flex h-full items-center">
+          {["INNOVATE", "DESIGN", "DEPLOY", "SCALE"].map((text, i) => (
+            <div key={i} className="h-item w-screen flex-shrink-0 flex items-center justify-center">
+              <h2 className="text-[12vw] font-black italic border-b border-white/5">{text}</h2>
             </div>
           ))}
         </div>
       </section>
 
-   
-      <section className="projects-section h-screen flex items-center overflow-hidden relative z-10 bg-[#020202]">
-        <div className="projects-wrapper flex relative">
+      {/* New Section: Marquee */}
+      <section className="py-20 border-y border-white/5 overflow-hidden whitespace-nowrap relative z-10">
+        <div className="marquee-inner flex gap-10 text-[8vw] font-black italic uppercase opacity-10">
+          <span>Nexus Labs — Nextjs — ReactJs  —</span>
+        </div>
+      </section>
+
+      {/* Projects Stacking Section (WITH HOLD FIX) */}
+      <section className="p-section h-screen w-full relative z-20 overflow-hidden bg-black">
+        <div className="relative w-full h-full">
           {[
-            { t: "AETHER", img: "https://images.unsplash.com/photo-1518770660439-4636190af475" },
-            { t: "CHRONOS", img: "https://images.unsplash.com/photo-1522199710521-72d69614c702" },
-            { t: "NEO-GEN", img: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee" }
+            { t: "Sales Dashboard", img: "/sales-dashboard.png" },
+            { t: "DevSync Social Platform for Developers", img: "/devsync.png" },
+            { t: "Clg Student Certificates Management System", img: "/student-crtfct.png" }
           ].map((proj, i) => (
-            <div key={i} className="project-card w-screen h-screen flex items-center justify-center relative overflow-hidden">
-              <div className="relative w-[60vw] h-[70vh] overflow-hidden rounded-2xl z-10 shadow-2xl border border-white/10">
-                 <img src={proj.img} className="project-main-img absolute w-full h-full object-cover" />
-              </div>
-              <div className="project-content absolute z-20 text-center pointer-events-none">
-                <h2 className="text-[13vw] font-black italic uppercase tracking-tighter">{proj.t}</h2>
+            <div key={i} className="p-card absolute inset-0 w-full h-full flex items-center justify-center" style={{ zIndex: i + 1 }}>
+              <div className="relative w-[90vw] h-[80vh] rounded-[3rem] overflow-hidden border border-white/10 bg-[#0a0a0a]">
+                <img src={proj.img} className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent flex flex-col justify-end p-16">
+                  <h2 className="text-6xl md:text-[6vw] font-black italic uppercase tracking-tighter leading-none">{proj.t}</h2>
+                </div>
               </div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* --- REFINED: ABOUT SECTION (Animated) --- */}
-      <section className="about-section min-h-screen flex items-center px-20 relative z-10 bg-[#050505]">
-        <div className="max-w-6xl">
-          <h2 className="about-title text-[10vw] font-black uppercase leading-[0.85] tracking-tighter mb-16 italic">Digital <br/> Sovereignty</h2>
-          <p className="about-para text-4xl text-zinc-400 leading-[1.4] font-light max-w-4xl mb-20">
-            We craft experiences that bypass the conscious mind, hitting the soul through <span className="text-white">perfect motion</span> and <span className="text-white">raw aesthetics</span>.
-          </p>
-          <div className="stats-grid grid grid-cols-3 gap-20">
-            {[["99+", "Legacy"], ["14", "Awards"], ["06", "Hubs"]].map((item, idx) => (
-              <div key={idx} className="stat-item">
-                <p className="text-white font-black text-7xl mb-2">{item[0]}</p>
-                <p className="text-zinc-600 uppercase tracking-widest text-[10px] font-bold">{item[1]}</p>
-              </div>
-            ))}
+      {/* New Section: Expertise/Services */}
+      <section className="py-60 px-10 relative border-t border-white z-10">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-40">
+          <div>
+            <h3 className="text-6xl font-black italic uppercase mb-10 tracking-tighter">Capabilities</h3>
+            <p className="text-zinc-500 leading-relaxed text-lg max-w-md">From secure compliance management for UK firms to high-performance Next.js architectures.</p>
+          </div>
+          <div className="flex flex-col gap-20">
+             {["Web Development", "UI/UX Design", "SEO Strategy", "IT Consulting"].map((s, i) => (
+               <div key={i} className="border-b border-white/10 pb-10 flex justify-between items-end group cursor-pointer hover:border-white transition-colors">
+                  <span className="text-4xl font-bold italic">{s}</span>
+                  <span className="text-[10px] opacity-40 font-mono">0{i+1}</span>
+               </div>
+             ))}
           </div>
         </div>
       </section>
 
-      {/* --- REFINED: FOOTER SECTION (Animated) --- */}
-      <footer className="h-screen flex flex-col items-center justify-center relative z-10 bg-[#050505] overflow-hidden">
-        <h2 className="footer-title text-[16vw] font-black uppercase italic tracking-tighter leading-none text-center">Inquire <br/> Now</h2>
-        <button className="footer-btn group my-20 relative px-24 py-8 overflow-hidden rounded-full border border-white/20 transition-all duration-700 hover:border-white">
-          <span className="relative z-10 text-xs  uppercase tracking-[0.6em] font-black group-hover:text-black transition-colors duration-700">Start Transmission</span>
-          <div className="absolute inset-0 bg-white translate-y-[100%] group-hover:translate-y-0 transition-transform duration-700"></div>
-        </button>
+      {/* Lengthy Footer */}
+      <footer className="relative z-10 bg-black text-white border-t border-white py-40 px-10">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-end gap-20">
+          <h2 className="text-[8vw] font-black italic tracking-tighter leading-none uppercase">Nexus</h2>
+          <div className="text-right">
+            <p className="uppercase tracking-[0.5em] text-[10px] font-bold mb-6">Let's build the future</p>
+            <p className="text-5xl font-black italic underline hover:opacity-50 transition-opacity">hello@nexus.com</p>
+          </div>
+        </div>
+        <div className="mt-60 pt-10 border-t border-black/10 flex flex-wrap justify-between text-[10px] font-bold tracking-[0.3em] uppercase opacity-40">
+          <p>© 2026 Nexus Digital Studio</p>
+          <div className="flex gap-10">
+            <span>Instagram</span>
+            <span>LinkedIn</span>
+            <span>Twitter</span>
+          </div>
+          <p>Always remember ICCS (College Project)</p>
+        </div>
       </footer>
-
     </main>
   );
 }
